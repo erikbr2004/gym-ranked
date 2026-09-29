@@ -39,3 +39,14 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# testes
+coverage/
+
+# editores / sistema
+.vscode/
+.idea/
+Thumbs.db
+
+# variáveis de ambiente
+.env

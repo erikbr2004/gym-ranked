@@ -2,10 +2,6 @@
 
 Aplicativo mobile de academia com **progressão competitiva**: cada grupo muscular tem sua própria pontuação e seu próprio rank, que sobem quando você treina com constância e caem quando você abandona aquele grupo.
 
-> Link do repositório: <adicionar aqui>
->
-> Vídeo de demonstração: <adicionar aqui>
-
 ---
 
 ## Descrição
@@ -210,11 +206,3 @@ gym-ranked/
 - Notificações (lembrete de grupos pendentes antes do fim da semana)
 - Desafios e conquistas
 - Integração com sensores e dispositivos de atividade física
-
-## GitHub
-
-Link do repositório: <adicionar aqui>
-
-## Vídeo
-
-Vídeo de demonstração: <adicionar aqui>

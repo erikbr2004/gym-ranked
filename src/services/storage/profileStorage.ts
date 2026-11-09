@@ -1,5 +1,6 @@
 import { DEFAULT_PROFILE_NAME, type Profile } from '../../features/profile/types/profile';
 import { getTodayKey, isValidDateKey } from '../../utils/date';
+import { isNonEmptyString } from '../../utils/guards';
 import { isRecord, readJson, writeJson } from './jsonStorage';
 import { STORAGE_KEYS } from './storageKeys';
 
@@ -17,20 +18,25 @@ export function createDefaultProfile(now: Date = new Date()): Profile {
   };
 }
 
-function toProfile(value: unknown): Profile | null {
+export function parseProfile(value: unknown): Profile | null {
   if (!isRecord(value)) return null;
-  const { name, startDate, createdAt } = value;
+  const { name, startDate, createdAt, avatarPath } = value;
   const isValid =
     typeof name === 'string' &&
     name.trim().length > 0 &&
     isValidDateKey(startDate) &&
     typeof createdAt === 'string';
-  return isValid ? { name, startDate, createdAt } : null;
+  if (!isValid) return null;
+
+  const profile: Profile = { name, startDate, createdAt };
+  // Foto de perfil é opcional: um valor inválido é ignorado sem descartar o perfil.
+  if (isNonEmptyString(avatarPath)) profile.avatarPath = avatarPath;
+  return profile;
 }
 
 export const profileStorage: ProfileRepository = {
   async getOrCreate() {
-    const stored = toProfile(await readJson(STORAGE_KEYS.PROFILE));
+    const stored = parseProfile(await readJson(STORAGE_KEYS.PROFILE));
     if (stored) return stored;
 
     const profile = createDefaultProfile();

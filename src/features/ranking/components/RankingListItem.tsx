@@ -6,6 +6,7 @@ import { RankBadge } from '../../../components/RankBadge';
 import { MUSCLE_GROUPS } from '../../../constants/muscleGroups';
 import { RANKING_RULES } from '../../../constants/rankingConfig';
 import { colors, fontSize, fontWeight, radius, spacing, withAlpha } from '../../../constants/theme';
+import { getStreakBonus } from '../services/rankingService';
 import type { MuscleRanking } from '../types/ranking';
 import { getRankIndex, getRankProgress } from '../utils/rankUtils';
 import { getRankVisual } from '../utils/rankVisuals';
@@ -24,10 +25,20 @@ function describeMissedWeeks(missedWeeks: number, hasLowerRank: boolean): string
   return `${missedWeeks} ${weeksLabel} sem treino${warning}`;
 }
 
+/** Sequência atual e o bônus que ela rende (nesta semana, se já treinou; senão, no próximo treino). */
+function describeStreak({ consecutiveTrainedWeeks: weeks, trainedThisWeek }: MuscleRanking): string | null {
+  const bonus = getStreakBonus(trainedThisWeek ? weeks - 1 : weeks);
+  if (bonus <= 0) return null;
+  const weeksLabel = weeks === 1 ? 'semana seguida' : 'semanas seguidas';
+  const bonusText = trainedThisWeek ? `+${bonus} de bônus nesta semana` : `próximo treino: +${bonus} de bônus`;
+  return `${weeks} ${weeksLabel} · ${bonusText}`;
+}
+
 export function RankingListItem({ ranking, position }: RankingListItemProps) {
   const { label, icon } = MUSCLE_GROUPS[ranking.muscleGroup];
   const { color } = getRankVisual(ranking.rank);
   const progress = getRankProgress(ranking.points);
+  const streakText = describeStreak(ranking);
 
   const progressText =
     progress.next && progress.pointsToNext !== null
@@ -73,6 +84,12 @@ export function RankingListItem({ ranking, position }: RankingListItemProps) {
         </View>
         {ranking.consecutiveMissedWeeks > 0 && (
           <Text style={styles.missed}>{describeMissedWeeks(ranking.consecutiveMissedWeeks, getRankIndex(ranking.rank) > 0)}</Text>
+        )}
+        {streakText && (
+          <View style={styles.status}>
+            <Ionicons name="flame" size={14} color={colors.warning} />
+            <Text style={styles.streak}>{streakText}</Text>
+          </View>
         )}
       </View>
 
@@ -155,6 +172,11 @@ const styles = StyleSheet.create({
   },
   missed: {
     color: colors.danger,
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.semibold,
+  },
+  streak: {
+    color: colors.warning,
     fontSize: fontSize.xs,
     fontWeight: fontWeight.semibold,
   },

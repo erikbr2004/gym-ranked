@@ -1,12 +1,13 @@
 import { sortMuscleGroups, type MuscleGroup } from '../../../constants/muscleGroups';
 import type { DateKey } from '../../../types/common';
 import { compareDateKeys, formatDate, parseDisplayDate } from '../../../utils/date';
-import type { Workout, WorkoutInput } from '../types/workout';
+import type { Workout, WorkoutExercise, WorkoutInput } from '../types/workout';
 
 export const WORKOUT_LIMITS = {
   TITLE_MAX_LENGTH: 40,
   NOTES_MAX_LENGTH: 300,
   DURATION_MAX_MINUTES: 600,
+  EXERCISES_MAX: 15,
 } as const;
 
 /** Valores crus do formulário, exatamente como digitados. */
@@ -14,6 +15,7 @@ export type WorkoutFormValues = {
   title: string;
   dateText: string;
   muscleGroups: MuscleGroup[];
+  exercises: WorkoutExercise[];
   durationText: string;
   notes: string;
 };
@@ -26,7 +28,7 @@ export type WorkoutValidationResult =
   | { isValid: false; errors: WorkoutFormErrors };
 
 export function createEmptyFormValues(today: DateKey): WorkoutFormValues {
-  return { title: '', dateText: formatDate(today), muscleGroups: [], durationText: '', notes: '' };
+  return { title: '', dateText: formatDate(today), muscleGroups: [], exercises: [], durationText: '', notes: '' };
 }
 
 export function workoutToFormValues(workout: Workout): WorkoutFormValues {
@@ -34,6 +36,7 @@ export function workoutToFormValues(workout: Workout): WorkoutFormValues {
     title: workout.title,
     dateText: formatDate(workout.date),
     muscleGroups: workout.muscleGroups,
+    exercises: workout.exercises,
     durationText: workout.durationMinutes?.toString() ?? '',
     notes: workout.notes ?? '',
   };
@@ -83,6 +86,7 @@ export function validateWorkoutForm(values: WorkoutFormValues, today: DateKey): 
       title,
       date,
       muscleGroups: sortMuscleGroups(values.muscleGroups),
+      exercises: values.exercises.slice(0, WORKOUT_LIMITS.EXERCISES_MAX),
       ...(duration !== undefined ? { durationMinutes: duration } : {}),
       ...(notes ? { notes } : {}),
     },

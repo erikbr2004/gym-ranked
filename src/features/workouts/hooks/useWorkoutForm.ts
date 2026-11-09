@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 
 import type { MuscleGroup } from '../../../constants/muscleGroups';
 import type { DateKey } from '../../../types/common';
-import type { WorkoutInput } from '../types/workout';
+import type { WorkoutExercise, WorkoutInput } from '../types/workout';
 import {
   validateWorkoutForm,
   type WorkoutFormErrors,
@@ -10,7 +10,7 @@ import {
   type WorkoutFormValues,
 } from '../utils/workoutValidation';
 
-type TextField = Exclude<keyof WorkoutFormValues, 'muscleGroups'>;
+type TextField = 'title' | 'dateText' | 'durationText' | 'notes';
 
 const FIELD_ERROR_KEY: Partial<Record<TextField, WorkoutFormField>> = {
   title: 'title',
@@ -69,6 +69,28 @@ export function useWorkoutForm(initialValues: WorkoutFormValues, today: DateKey)
     [clearError],
   );
 
+  /** Recebe a seleção do catálogo: substitui os exercícios e marca os grupos deles. */
+  const applyPickedExercises = useCallback(
+    (exercises: WorkoutExercise[]) => {
+      setValues((current) => {
+        const groups = new Set(current.muscleGroups);
+        for (const exercise of exercises) {
+          if (exercise.muscleGroup) groups.add(exercise.muscleGroup);
+        }
+        return { ...current, exercises, muscleGroups: [...groups] };
+      });
+      if (exercises.some((exercise) => exercise.muscleGroup !== null)) clearError('muscleGroups');
+    },
+    [clearError],
+  );
+
+  const removeExercise = useCallback((exerciseId: number) => {
+    setValues((current) => ({
+      ...current,
+      exercises: current.exercises.filter((exercise) => exercise.exerciseId !== exerciseId),
+    }));
+  }, []);
+
   const reset = useCallback((nextValues: WorkoutFormValues) => {
     setValues(nextValues);
     setErrors({});
@@ -85,7 +107,17 @@ export function useWorkoutForm(initialValues: WorkoutFormValues, today: DateKey)
     return result.input;
   }, [values, today]);
 
-  return { values, errors, setField, toggleMuscleGroup, selectMuscleGroup, reset, validate };
+  return {
+    values,
+    errors,
+    setField,
+    toggleMuscleGroup,
+    selectMuscleGroup,
+    applyPickedExercises,
+    removeExercise,
+    reset,
+    validate,
+  };
 }
 
 export type WorkoutFormController = ReturnType<typeof useWorkoutForm>;

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -16,13 +15,14 @@ import { AppButton } from '../../../components/AppButton';
 import { AppHeader } from '../../../components/AppHeader';
 import { ScreenContainer } from '../../../components/ScreenContainer';
 import { StatCard } from '../../../components/StatCard';
-import { images } from '../../../constants/images';
 import { colors, fontSize, fontWeight, radius, sizes, spacing } from '../../../constants/theme';
 import { useProfile } from '../../../hooks/useProfile';
 import { formatDate } from '../../../utils/date';
 import { getErrorMessage, showMessage } from '../../../utils/dialogs';
 import { PROFILE_NAME_MAX_LENGTH } from '../types/profile';
 import { DevToolsSection } from '../components/DevToolsSection';
+import { PhotoPreferencesSection } from '../components/PhotoPreferencesSection';
+import { ProfilePhotoEditor } from '../components/ProfilePhotoEditor';
 
 export function ProfileScreen() {
   const { profile, updateProfileName, totalWorkouts, weeksTracked } = useProfile();
@@ -61,12 +61,7 @@ export function ProfileScreen() {
           <AppHeader title="Perfil" subtitle="Sua jornada no GymRank" />
 
           <View style={styles.identity}>
-            <Image
-              source={images.avatar}
-              style={styles.avatar}
-              accessibilityLabel="Avatar do usuário"
-              accessibilityIgnoresInvertColors
-            />
+            <ProfilePhotoEditor />
 
             {isEditing ? (
               <View style={styles.editArea}>
@@ -119,6 +114,8 @@ export function ProfileScreen() {
             <StatCard label="Início do acompanhamento" value={formatDate(profile.startDate)} icon="flag-outline" />
           </View>
 
+          <PhotoPreferencesSection />
+
           {__DEV__ && <DevToolsSection />}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -138,11 +135,6 @@ const styles = StyleSheet.create({
   identity: {
     alignItems: 'center',
     gap: spacing.lg,
-  },
-  avatar: {
-    width: sizes.avatarLg,
-    height: sizes.avatarLg,
-    borderRadius: sizes.avatarLg / 2,
   },
   nameRow: {
     flexDirection: 'row',

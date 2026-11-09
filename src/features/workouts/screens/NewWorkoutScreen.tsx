@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
 
 import { AppHeader } from '../../../components/AppHeader';
 import { ScreenContainer } from '../../../components/ScreenContainer';
-import { getMuscleGroupLabel } from '../../../constants/muscleGroups';
 import { spacing } from '../../../constants/theme';
 import { useWorkouts } from '../../../hooks/useWorkouts';
 import type { MainTabScreenProps } from '../../../navigation/navigationTypes';
@@ -16,9 +15,12 @@ export function NewWorkoutScreen({ navigation, route }: MainTabScreenProps<'NewW
   const { addWorkout, today } = useWorkouts();
   const form = useWorkoutForm(createEmptyFormValues(today), today);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Trava imediata contra toque duplo: cada finalização gera exatamente um treino.
+  const submittingRef = useRef(false);
 
   const preselectedGroup = route.params?.preselectedGroup;
-  const { selectMuscleGroup } = form;
+  const pickedExercises = route.params?.pickedExercises;
+  const { selectMuscleGroup, applyPickedExercises } = form;
 
   // Ao vir do Dashboard tocando em um grupo, marca o grupo e limpa o parâmetro.
   useEffect(() => {
@@ -27,21 +29,37 @@ export function NewWorkoutScreen({ navigation, route }: MainTabScreenProps<'NewW
     navigation.setParams({ preselectedGroup: undefined });
   }, [preselectedGroup, selectMuscleGroup, navigation]);
 
-  const handleSubmit = async () => {
+  // Ao voltar do catálogo, aplica os exercícios escolhidos e limpa o parâmetro.
+  useEffect(() => {
+    if (!pickedExercises) return;
+    applyPickedExercises(pickedExercises);
+    navigation.setParams({ pickedExercises: undefined });
+  }, [pickedExercises, applyPickedExercises, navigation]);
+
+  const openCatalog = () => {
+    navigation.navigate('ExerciseCatalog', {
+      mode: 'select',
+      target: { screen: 'NewWorkout' },
+      selected: form.values.exercises,
+      initialGroup: form.values.muscleGroups[0],
+    });
+  };
+
+  const handleFinish = async () => {
+    if (submittingRef.current) return;
     const input = form.validate();
     if (!input) return;
 
+    submittingRef.current = true;
     setIsSubmitting(true);
     try {
-      await addWorkout(input);
+      const workout = await addWorkout(input);
       form.reset(createEmptyFormValues(today));
-      const groupLabels = input.muscleGroups.map(getMuscleGroupLabel).join(', ');
-      const verb = input.muscleGroups.length === 1 ? 'contabilizado' : 'contabilizados';
-      showMessage('Treino salvo!', `${groupLabels} ${verb} na semana.`);
-      navigation.navigate('Home');
+      navigation.navigate('WorkoutCompleted', { workoutId: workout.id });
     } catch (error) {
       showMessage('Erro ao salvar', getErrorMessage(error));
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -54,9 +72,10 @@ export function NewWorkoutScreen({ navigation, route }: MainTabScreenProps<'NewW
           <WorkoutForm
             form={form}
             today={today}
-            submitLabel="Salvar treino"
-            onSubmit={handleSubmit}
+            submitLabel="Finalizar treino"
+            onSubmit={handleFinish}
             isSubmitting={isSubmitting}
+            onOpenCatalog={openCatalog}
           />
         </ScrollView>
       </KeyboardAvoidingView>

@@ -2,7 +2,10 @@ import { DarkTheme, NavigationContainer, type Theme } from '@react-navigation/na
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { colors } from '../constants/theme';
+import { ExerciseCatalogScreen } from '../features/exercises/screens/ExerciseCatalogScreen';
+import { WorkoutPhotoScreen } from '../features/workout-photo/screens/WorkoutPhotoScreen';
 import { EditWorkoutScreen } from '../features/workouts/screens/EditWorkoutScreen';
+import { WorkoutCompletedScreen } from '../features/workouts/screens/WorkoutCompletedScreen';
 import { WorkoutDetailsScreen } from '../features/workouts/screens/WorkoutDetailsScreen';
 import { BottomTabs } from './BottomTabs';
 import type { RootStackParamList } from './navigationTypes';
@@ -40,6 +43,21 @@ export function AppNavigator() {
           options={{ title: 'Detalhes do treino' }}
         />
         <Stack.Screen name="EditWorkout" component={EditWorkoutScreen} options={{ title: 'Editar treino' }} />
+        <Stack.Screen
+          name="WorkoutCompleted"
+          component={WorkoutCompletedScreen}
+          // O treino já foi salvo: a saída é por "Concluir sem foto" ou pelo fluxo da foto.
+          // `headerLeft` também esconde a seta na web, onde `headerBackVisible` é ignorado.
+          options={{ title: 'Treino concluído', headerBackVisible: false, headerLeft: () => null, gestureEnabled: false }}
+        />
+        <Stack.Screen name="WorkoutPhoto" component={WorkoutPhotoScreen} options={{ title: 'Foto do treino' }} />
+        <Stack.Screen
+          name="ExerciseCatalog"
+          component={ExerciseCatalogScreen}
+          options={({ route }) => ({
+            title: route.params.mode === 'select' ? 'Adicionar exercícios' : 'Catálogo de exercícios',
+          })}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

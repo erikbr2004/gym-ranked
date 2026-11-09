@@ -20,17 +20,21 @@ import { getRankForPoints, getRankIndex, getRankIndexForPoints } from '../utils/
  * editar ou excluir um treino recalcula tudo de forma consistente, e abrir o
  * app depois de várias semanas produz o mesmo resultado que abri-lo toda semana.
  *
- * Regras (valores em constants/rankingConfig.ts):
+ * Regras (valores em constants/rankingConfig.ts). Quanto maior o rank, mais
+ * difícil: as faixas são mais largas e faltar custa mais.
  *  1. Para cada semana COMPLETA desde o início do acompanhamento:
- *     - grupo treinado ao menos uma vez → +25 pts e zera semanas sem treino;
+ *     - grupo treinado ao menos uma vez → +25 pts, mais o bônus de sequência
+ *       (+5 na 2ª semana seguida, +10 a partir da 3ª), e zera semanas sem treino;
  *       vários treinos do mesmo grupo na semana contam uma única vez (anti-farm);
- *     - grupo não treinado → -15 pts (mínimo 0) e +1 semana sem treino.
+ *     - grupo não treinado → perde a penalidade do rank atual (de -10 no
+ *       Iniciante a -50 no Elite; mínimo 0), +1 semana sem treino e a
+ *       sequência volta a zero.
  *  2. A cada 2 semanas completas consecutivas sem treino o grupo é rebaixado
  *     um rank em relação ao rank que tinha no INÍCIO desse período de 2 semanas,
  *     mesmo que a pontuação ainda estivesse dentro dele (ex.: Ouro → Prata).
  *     Usar o rank do início do período evita cair dois ranks quando a penalidade
- *     da 1ª semana já cruzou a fronteira. A pontuação passa a ser no máximo
- *     `mínimo do novo rank + DEMOTION_LANDING_OFFSET`, mantendo rank = f(pontos).
+ *     da 1ª semana já cruzou a fronteira. A pontuação passa a ser no máximo o
+ *     meio da faixa do novo rank, mantendo rank = f(pontos).
  *  3. A semana atual (ainda não terminada) nunca é penalizada. Se o grupo já
  *     foi treinado nela, a recompensa aparece imediatamente — ela é garantida,
  *     pois a semana terminará como "treinada" de qualquer forma.
@@ -39,6 +43,8 @@ import { getRankForPoints, getRankIndex, getRankIndexForPoints } from '../utils/
 export type GroupState = {
   points: number;
   consecutiveMissedWeeks: number;
+  /** Semanas seguidas em que o grupo foi treinado (base do bônus de sequência). */
+  consecutiveTrainedWeeks: number;
   /** Rank no início do período atual de semanas perdidas (referência do rebaixamento). */
   blockStartRankIndex: number;
 };
@@ -46,10 +52,35 @@ export type GroupState = {
 export const INITIAL_GROUP_STATE: GroupState = {
   points: RANKING_RULES.MIN_POINTS,
   consecutiveMissedWeeks: 0,
+  consecutiveTrainedWeeks: 0,
   blockStartRankIndex: 0,
 };
 
-type WeekOutcome = GroupState & { demoted: boolean };
+type WeekOutcome = GroupState & {
+  demoted: boolean;
+  /** Parte da recompensa que veio da sequência (0 em semanas perdidas). */
+  streakBonus: number;
+};
+
+/** Bônus da semana treinada, dado o número de semanas seguidas já treinadas antes dela. */
+export function getStreakBonus(previousTrainedWeeks: number): number {
+  const { STREAK_BONUS_PER_WEEK, STREAK_BONUS_MAX } = RANKING_RULES;
+  return Math.min(previousTrainedWeeks * STREAK_BONUS_PER_WEEK, STREAK_BONUS_MAX);
+}
+
+/** Pontos perdidos por uma semana sem treino: depende do rank em que o grupo está. */
+export function getMissedWeekPenalty(points: number): number {
+  return RANK_TIERS[getRankIndexForPoints(points)].missedWeekPenalty;
+}
+
+/** Pontuação máxima de quem foi rebaixado para o rank `rankIndex`: o meio da faixa dele. */
+export function getDemotionLandingPoints(rankIndex: number): number {
+  const tier = RANK_TIERS[rankIndex];
+  const next = RANK_TIERS[rankIndex + 1];
+  // Sempre existe um rank acima de quem foi rebaixado; a guarda só protege a configuração.
+  if (!next) return tier.minPoints;
+  return tier.minPoints + Math.floor((next.minPoints - tier.minPoints) * RANKING_RULES.DEMOTION_LANDING_RATIO);
+}
 
 export type RankingInput = {
   workouts: readonly Workout[];
@@ -66,38 +97,39 @@ export function getTrackingStartDate(profileStartDate: DateKey, workouts: readon
 }
 
 export function applyTrainedWeek(state: GroupState): WeekOutcome {
-  const points = state.points + RANKING_RULES.WEEKLY_TRAINED_REWARD;
+  const streakBonus = getStreakBonus(state.consecutiveTrainedWeeks);
+  const points = state.points + RANKING_RULES.WEEKLY_TRAINED_REWARD + streakBonus;
   return {
     points,
     consecutiveMissedWeeks: 0,
+    consecutiveTrainedWeeks: state.consecutiveTrainedWeeks + 1,
     blockStartRankIndex: getRankIndexForPoints(points),
     demoted: false,
+    streakBonus,
   };
 }
 
 export function applyMissedWeek(state: GroupState): WeekOutcome {
-  const { MISSED_WEEKS_FOR_DEMOTION, WEEKLY_MISSED_PENALTY, MIN_POINTS, DEMOTION_LANDING_OFFSET } =
-    RANKING_RULES;
+  const { MISSED_WEEKS_FOR_DEMOTION, MIN_POINTS } = RANKING_RULES;
 
   const startsNewBlock = state.consecutiveMissedWeeks % MISSED_WEEKS_FOR_DEMOTION === 0;
   const blockStartRankIndex = startsNewBlock
     ? getRankIndexForPoints(state.points)
     : state.blockStartRankIndex;
   const consecutiveMissedWeeks = state.consecutiveMissedWeeks + 1;
-  const penalizedPoints = Math.max(MIN_POINTS, state.points - WEEKLY_MISSED_PENALTY);
+  const penalizedPoints = Math.max(MIN_POINTS, state.points - getMissedWeekPenalty(state.points));
 
   const completesBlock = consecutiveMissedWeeks % MISSED_WEEKS_FOR_DEMOTION === 0;
   const hasLowerRank = blockStartRankIndex > 0;
+  const base = { consecutiveMissedWeeks, consecutiveTrainedWeeks: 0, blockStartRankIndex, streakBonus: 0 };
 
   if (!completesBlock || !hasLowerRank) {
-    return { points: penalizedPoints, consecutiveMissedWeeks, blockStartRankIndex, demoted: false };
+    return { ...base, points: penalizedPoints, demoted: false };
   }
 
-  const demotedTier = RANK_TIERS[blockStartRankIndex - 1];
   return {
-    points: Math.min(penalizedPoints, demotedTier.minPoints + DEMOTION_LANDING_OFFSET),
-    consecutiveMissedWeeks,
-    blockStartRankIndex,
+    ...base,
+    points: Math.min(penalizedPoints, getDemotionLandingPoints(blockStartRankIndex - 1)),
     demoted: true,
   };
 }
@@ -146,6 +178,7 @@ function buildWeeklyResult(
     pointsAfter: outcome.points,
     rankAfter: getRankForPoints(outcome.points),
     demoted: outcome.demoted,
+    streakBonus: outcome.streakBonus,
   };
 }
 
@@ -178,6 +211,7 @@ function calculateGroupRanking(
     points: state.points,
     rank: getRankForPoints(state.points),
     consecutiveMissedWeeks: state.consecutiveMissedWeeks,
+    consecutiveTrainedWeeks: state.consecutiveTrainedWeeks,
     trainedThisWeek,
     lastTrainedDate,
     weeklyResults,

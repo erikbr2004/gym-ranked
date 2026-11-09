@@ -11,20 +11,57 @@ import {
 import { calculateRankings } from '../features/ranking/services/rankingService';
 import { calculateWeeklySummary } from '../features/ranking/services/weeklySummaryService';
 import type { MuscleRanking, WeeklySummary } from '../features/ranking/types/ranking';
+import {
+  cleanupOrphanProfilePhotos,
+  deleteAllProfilePhotos,
+  removeProfilePhoto as clearProfilePhoto,
+  saveProfilePhoto,
+} from '../features/profile/services/profilePhotoService';
 import type { Profile } from '../features/profile/types/profile';
+import {
+  cleanupOrphanPhotoFiles,
+  removeWorkoutPhoto as removePhoto,
+  saveWorkoutPhoto as savePhoto,
+  type PhotoSource,
+} from '../features/workout-photo/services/photoService';
+import type { WorkoutPhoto } from '../features/workout-photo/types/photo';
+import { createWorkout, deleteWorkout as removeWorkout, updateWorkout as editWorkout } from '../features/workouts/services/workoutService';
 import type { Workout, WorkoutInput } from '../features/workouts/types/workout';
 import { useToday } from '../hooks/useToday';
+import { getDatabase } from '../services/database/database';
+import { migrateLegacyWorkouts } from '../services/database/migrations/legacyWorkoutsMigration';
+import { photoRepository } from '../services/database/repositories/photoRepository';
+import { workoutRepository } from '../services/database/repositories/workoutRepository';
+import { DatabaseError } from '../services/database/types';
+import { deleteAllStoredPhotos } from '../services/filesystem/photoFileStorage';
 import { clearAppStorage } from '../services/storage/appStorage';
 import { StorageError } from '../services/storage/jsonStorage';
+import { readLegacyWorkouts, removeLegacyWorkouts } from '../services/storage/legacyWorkoutStorage';
 import { createDefaultProfile, profileStorage } from '../services/storage/profileStorage';
-import { workoutStorage } from '../services/storage/workoutStorage';
+import { DEFAULT_SETTINGS, settingsStorage, type AppSettings } from '../services/storage/settingsStorage';
 import type { DateKey } from '../types/common';
 import { compareDateKeys } from '../utils/date';
-import { generateId } from '../utils/id';
+
+/*
+ * Estado global do app. Cada tecnologia tem um papel:
+ *   AsyncStorage → perfil e preferências (chave-valor)
+ *   SQLite       → treinos, grupos musculares, exercícios e metadados das fotos
+ *   FileSystem   → arquivos das fotografias
+ * O ranking nunca é salvo: é derivado dos treinos a cada alteração.
+ */
 
 type AppData = {
   profile: Profile;
+  settings: AppSettings;
   workouts: Workout[];
+  /** Foto de cada treino, indexada pelo id do treino. */
+  photosByWorkoutId: Record<string, WorkoutPhoto>;
+};
+
+export type SaveWorkoutPhotoInput = {
+  workoutId: string;
+  source: PhotoSource;
+  compositionUri: string;
 };
 
 export type AppDataContextValue = AppData & {
@@ -35,7 +72,13 @@ export type AppDataContextValue = AppData & {
   updateWorkout: (id: string, input: WorkoutInput) => Promise<void>;
   deleteWorkout: (id: string) => Promise<void>;
   updateProfileName: (name: string) => Promise<void>;
-  replaceAllData: (data: AppData) => Promise<void>;
+  /** Troca a foto de perfil pela imagem em `sourceUri` (câmera ou galeria). */
+  updateProfilePhoto: (sourceUri: string) => Promise<void>;
+  removeProfilePhoto: () => Promise<void>;
+  updateSettings: (changes: Partial<AppSettings>) => Promise<void>;
+  saveWorkoutPhoto: (input: SaveWorkoutPhotoInput) => Promise<WorkoutPhoto>;
+  removeWorkoutPhoto: (workoutId: string) => Promise<void>;
+  replaceAllData: (data: { profile: Profile; workouts: Workout[] }) => Promise<void>;
   resetAllData: () => Promise<void>;
 };
 
@@ -48,9 +91,41 @@ function sortWorkouts(workouts: Workout[]): Workout[] {
   );
 }
 
+function indexPhotos(photos: WorkoutPhoto[]): Record<string, WorkoutPhoto> {
+  return Object.fromEntries(photos.map((photo) => [photo.workoutId, photo]));
+}
+
+function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  const next = { ...record };
+  delete next[key];
+  return next;
+}
+
 async function loadAppData(): Promise<AppData> {
-  const [profile, workouts] = await Promise.all([profileStorage.getOrCreate(), workoutStorage.getAll()]);
-  return { profile, workouts: sortWorkouts(workouts) };
+  const db = await getDatabase();
+  await migrateLegacyWorkouts(db, { read: readLegacyWorkouts, remove: removeLegacyWorkouts });
+
+  const [profile, settings, workouts, photos] = await Promise.all([
+    profileStorage.getOrCreate(),
+    settingsStorage.get(),
+    workoutRepository.findAll(db),
+    photoRepository.findAll(db),
+  ]);
+
+  try {
+    await cleanupOrphanPhotoFiles(db);
+  } catch (error) {
+    // Limpeza é só manutenção: uma falha aqui não pode impedir o app de abrir.
+    console.warn('[photos] Falha ao limpar arquivos órfãos.', error);
+  }
+  cleanupOrphanProfilePhotos(profile.avatarPath);
+
+  return { profile, settings, workouts: sortWorkouts(workouts), photosByWorkoutId: indexPhotos(photos) };
+}
+
+function getLoadErrorMessage(error: unknown): string {
+  if (error instanceof DatabaseError || error instanceof StorageError) return error.message;
+  return 'Erro inesperado ao carregar os dados.';
 }
 
 type AppDataProviderProps = {
@@ -61,7 +136,7 @@ type AppDataProviderProps = {
   renderError: (message: string, retry: () => void) => ReactNode;
 };
 
-/** Carrega os dados salvos e só então disponibiliza o contexto para o app. */
+/** Abre o banco, migra dados antigos e só então disponibiliza o contexto para o app. */
 export function AppDataProvider({ children, loadingFallback, renderError }: AppDataProviderProps) {
   const [initialData, setInitialData] = useState<AppData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -75,7 +150,8 @@ export function AppDataProvider({ children, loadingFallback, renderError }: AppD
       })
       .catch((error: unknown) => {
         if (!isActive) return;
-        setLoadError(error instanceof StorageError ? error.message : 'Erro inesperado ao carregar os dados.');
+        console.warn('[app] Falha ao carregar dados.', error);
+        setLoadError(getLoadErrorMessage(error));
       });
     return () => {
       isActive = false;
@@ -98,49 +174,39 @@ type LoadedAppDataProviderProps = {
   children: ReactNode;
 };
 
-/**
- * Estado global do app após o carregamento. Toda alteração segue o fluxo
- * UI → contexto → serviço de armazenamento → estado; o ranking é apenas derivado.
- */
+/** Fluxo de cada alteração: UI → contexto → serviço → SQLite/AsyncStorage/arquivos → estado. */
 function LoadedAppDataProvider({ initialData, children }: LoadedAppDataProviderProps) {
   const today = useToday();
   const [data, setData] = useState<AppData>(initialData);
-  const { profile, workouts } = data;
+  const { profile, settings, workouts, photosByWorkoutId } = data;
 
-  const persistWorkouts = useCallback(
-    async (nextWorkouts: Workout[]) => {
-      const sorted = sortWorkouts(nextWorkouts);
-      await workoutStorage.saveAll(sorted);
-      setData((current) => ({ ...current, workouts: sorted }));
-    },
-    [],
-  );
-
-  const addWorkout = useCallback(
-    async (input: WorkoutInput) => {
-      const workout: Workout = { ...input, id: generateId(), createdAt: new Date().toISOString() };
-      await persistWorkouts([...workouts, workout]);
-      return workout;
-    },
-    [persistWorkouts, workouts],
-  );
+  const addWorkout = useCallback(async (input: WorkoutInput) => {
+    const workout = await createWorkout(await getDatabase(), input);
+    setData((current) => ({ ...current, workouts: sortWorkouts([...current.workouts, workout]) }));
+    return workout;
+  }, []);
 
   const updateWorkout = useCallback(
     async (id: string, input: WorkoutInput) => {
       const existing = workouts.find((workout) => workout.id === id);
       if (!existing) throw new Error('Treino não encontrado.');
-      const updated: Workout = { ...input, id, createdAt: existing.createdAt };
-      await persistWorkouts(workouts.map((workout) => (workout.id === id ? updated : workout)));
+      const updated = await editWorkout(await getDatabase(), existing, input);
+      setData((current) => ({
+        ...current,
+        workouts: sortWorkouts(current.workouts.map((workout) => (workout.id === id ? updated : workout))),
+      }));
     },
-    [persistWorkouts, workouts],
+    [workouts],
   );
 
-  const deleteWorkout = useCallback(
-    async (id: string) => {
-      await persistWorkouts(workouts.filter((workout) => workout.id !== id));
-    },
-    [persistWorkouts, workouts],
-  );
+  const deleteWorkout = useCallback(async (id: string) => {
+    await removeWorkout(await getDatabase(), id);
+    setData((current) => ({
+      ...current,
+      workouts: current.workouts.filter((workout) => workout.id !== id),
+      photosByWorkoutId: withoutKey(current.photosByWorkoutId, id),
+    }));
+  }, []);
 
   const updateProfileName = useCallback(
     async (name: string) => {
@@ -151,17 +217,70 @@ function LoadedAppDataProvider({ initialData, children }: LoadedAppDataProviderP
     [profile],
   );
 
-  const replaceAllData = useCallback(async (next: AppData) => {
-    const sorted = sortWorkouts(next.workouts);
-    await Promise.all([profileStorage.save(next.profile), workoutStorage.saveAll(sorted)]);
-    setData({ profile: next.profile, workouts: sorted });
+  const updateProfilePhoto = useCallback(
+    async (sourceUri: string) => {
+      const nextProfile = await saveProfilePhoto(profile, sourceUri);
+      setData((current) => ({ ...current, profile: nextProfile }));
+    },
+    [profile],
+  );
+
+  const removeProfilePhoto = useCallback(async () => {
+    const nextProfile = await clearProfilePhoto(profile);
+    setData((current) => ({ ...current, profile: nextProfile }));
+  }, [profile]);
+
+  /** Atualiza na hora (interruptores respondem sem atraso) e desfaz se a gravação falhar. */
+  const updateSettings = useCallback(
+    async (changes: Partial<AppSettings>) => {
+      const previous = settings;
+      const next = { ...settings, ...changes };
+      setData((current) => ({ ...current, settings: next }));
+      try {
+        await settingsStorage.save(next);
+      } catch (error) {
+        setData((current) => ({ ...current, settings: previous }));
+        throw error;
+      }
+    },
+    [settings],
+  );
+
+  const saveWorkoutPhoto = useCallback(async ({ workoutId, source, compositionUri }: SaveWorkoutPhotoInput) => {
+    const photo = await savePhoto(await getDatabase(), { workoutId, source, compositionUri });
+    setData((current) => ({
+      ...current,
+      photosByWorkoutId: { ...current.photosByWorkoutId, [workoutId]: photo },
+    }));
+    return photo;
+  }, []);
+
+  const removeWorkoutPhoto = useCallback(async (workoutId: string) => {
+    await removePhoto(await getDatabase(), workoutId);
+    setData((current) => ({ ...current, photosByWorkoutId: withoutKey(current.photosByWorkoutId, workoutId) }));
+  }, []);
+
+  const replaceAllData = useCallback(async (next: { profile: Profile; workouts: Workout[] }) => {
+    await workoutRepository.replaceAll(await getDatabase(), next.workouts);
+    deleteAllStoredPhotos();
+    await profileStorage.save(next.profile);
+    cleanupOrphanProfilePhotos(next.profile.avatarPath);
+    setData((current) => ({
+      ...current,
+      profile: next.profile,
+      workouts: sortWorkouts(next.workouts),
+      photosByWorkoutId: {},
+    }));
   }, []);
 
   const resetAllData = useCallback(async () => {
+    await workoutRepository.removeAll(await getDatabase());
+    deleteAllStoredPhotos();
+    deleteAllProfilePhotos();
     await clearAppStorage();
     const defaultProfile = createDefaultProfile();
     await profileStorage.save(defaultProfile);
-    setData({ profile: defaultProfile, workouts: [] });
+    setData({ profile: defaultProfile, settings: DEFAULT_SETTINGS, workouts: [], photosByWorkoutId: {} });
   }, []);
 
   // Ranking e resumo são derivados: recalculados sempre que treinos, perfil ou a data mudam.
@@ -178,7 +297,9 @@ function LoadedAppDataProvider({ initialData, children }: LoadedAppDataProviderP
   const value = useMemo<AppDataContextValue>(
     () => ({
       profile,
+      settings,
       workouts,
+      photosByWorkoutId,
       today,
       rankings,
       weeklySummary,
@@ -186,12 +307,19 @@ function LoadedAppDataProvider({ initialData, children }: LoadedAppDataProviderP
       updateWorkout,
       deleteWorkout,
       updateProfileName,
+      updateProfilePhoto,
+      removeProfilePhoto,
+      updateSettings,
+      saveWorkoutPhoto,
+      removeWorkoutPhoto,
       replaceAllData,
       resetAllData,
     }),
     [
       profile,
+      settings,
       workouts,
+      photosByWorkoutId,
       today,
       rankings,
       weeklySummary,
@@ -199,6 +327,11 @@ function LoadedAppDataProvider({ initialData, children }: LoadedAppDataProviderP
       updateWorkout,
       deleteWorkout,
       updateProfileName,
+      updateProfilePhoto,
+      removeProfilePhoto,
+      updateSettings,
+      saveWorkoutPhoto,
+      removeWorkoutPhoto,
       replaceAllData,
       resetAllData,
     ],
@@ -207,7 +340,7 @@ function LoadedAppDataProvider({ initialData, children }: LoadedAppDataProviderP
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }
 
-/** Uso interno dos hooks de domínio (useWorkouts, useRanking, useProfile). */
+/** Uso interno dos hooks de domínio (useWorkouts, useRanking, useProfile, useSettings...). */
 export function useAppData(): AppDataContextValue {
   const context = useContext(AppDataContext);
   if (!context) {

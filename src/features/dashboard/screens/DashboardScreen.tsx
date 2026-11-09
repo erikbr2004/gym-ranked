@@ -1,12 +1,13 @@
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { AppButton } from '../../../components/AppButton';
 import { AppHeader } from '../../../components/AppHeader';
 import { MuscleGroupCard } from '../../../components/MuscleGroupCard';
+import { ProfileAvatar } from '../../../components/ProfileAvatar';
 import { ProgressBar } from '../../../components/ProgressBar';
 import { ScreenContainer } from '../../../components/ScreenContainer';
 import { StatCard } from '../../../components/StatCard';
-import { images } from '../../../constants/images';
 import { colors, fontSize, fontWeight, radius, sizes, spacing } from '../../../constants/theme';
 import { useProfile } from '../../../hooks/useProfile';
 import { useRanking } from '../../../hooks/useRanking';
@@ -26,12 +27,16 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Home'>) {
           subtitle={`${getGreeting()},`}
           title={profile.name}
           right={
-            <Image
-              source={images.avatar}
-              style={styles.avatar}
-              accessibilityLabel="Avatar do usuário"
-              accessibilityIgnoresInvertColors
-            />
+            <Pressable
+              onPress={() => navigation.navigate('Profile')}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Abrir perfil"
+              accessibilityHint="Mostra o perfil, a foto de perfil e as preferências"
+              style={({ pressed }) => [styles.avatarButton, pressed && styles.avatarButtonPressed]}
+            >
+              <ProfileAvatar size={sizes.avatarSm} />
+            </Pressable>
           }
         />
 
@@ -85,6 +90,23 @@ export function DashboardScreen({ navigation }: MainTabScreenProps<'Home'>) {
           icon="add-circle-outline"
           onPress={() => navigation.navigate('NewWorkout')}
         />
+
+        <Pressable
+          onPress={() => navigation.navigate('ExerciseCatalog', { mode: 'browse' })}
+          accessibilityRole="button"
+          accessibilityLabel="Catálogo de exercícios"
+          accessibilityHint="Consulta exercícios por grupo muscular na API wger"
+          style={({ pressed }) => [styles.catalogCard, pressed && styles.catalogCardPressed]}
+        >
+          <View style={styles.catalogIcon}>
+            <MaterialCommunityIcons name="book-open-variant" size={sizes.iconMd} color={colors.primary} />
+          </View>
+          <View style={styles.catalogTexts}>
+            <Text style={styles.catalogTitle}>Catálogo de exercícios</Text>
+            <Text style={styles.catalogSubtitle}>Explore exercícios por grupo muscular (API wger)</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={sizes.iconMd} color={colors.textMuted} />
+        </Pressable>
       </ScrollView>
     </ScreenContainer>
   );
@@ -96,10 +118,11 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
     gap: spacing.lg,
   },
-  avatar: {
-    width: sizes.avatarSm,
-    height: sizes.avatarSm,
+  avatarButton: {
     borderRadius: sizes.avatarSm / 2,
+  },
+  avatarButtonPressed: {
+    opacity: 0.7,
   },
   weekCard: {
     padding: spacing.lg,
@@ -167,5 +190,39 @@ const styles = StyleSheet.create({
     // Duas colunas: (100% - gap) / 2
     width: '48.5%',
     flexGrow: 1,
+  },
+  catalogCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  catalogCardPressed: {
+    backgroundColor: colors.surfacePressed,
+  },
+  catalogIcon: {
+    width: sizes.touchTarget,
+    height: sizes.touchTarget,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceAlt,
+  },
+  catalogTexts: {
+    flex: 1,
+    gap: spacing.xxs,
+  },
+  catalogTitle: {
+    color: colors.text,
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.bold,
+  },
+  catalogSubtitle: {
+    color: colors.textMuted,
+    fontSize: fontSize.sm,
   },
 });

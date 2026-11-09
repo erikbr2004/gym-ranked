@@ -24,7 +24,26 @@
     },
     "plugins": [
       "expo-font",
-      "expo-status-bar"
+      "expo-status-bar",
+      "expo-sqlite",
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "O GymRank usa a câmera para você fotografar seus treinos.",
+          "photosPermission": "O GymRank acessa suas fotos para você escolher a imagem de um treino.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "O GymRank acessa suas fotos para salvar as imagens dos seus treinos.",
+          "savePhotosPermission": "O GymRank salva na galeria as imagens geradas dos seus treinos.",
+          "isAccessMediaLocationEnabled": false,
+          "granularPermissions": ["photo"]
+        }
+      ]
     ]
   }
 }

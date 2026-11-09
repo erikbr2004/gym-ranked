@@ -1,6 +1,6 @@
 import type { MuscleGroup } from '../constants/muscleGroups';
 import type { Profile } from '../features/profile/types/profile';
-import type { Workout } from '../features/workouts/types/workout';
+import type { Workout, WorkoutExercise } from '../features/workouts/types/workout';
 import type { DateKey } from '../types/common';
 import { addDays, addWeeks, compareDateKeys, getWeekStart } from '../utils/date';
 
@@ -22,6 +22,8 @@ type DemoSession = {
   /** Decide se a sessão acontece na semana `week` (0 = mais antiga, DEMO_WEEKS = atual). */
   happensOn: (week: number) => boolean;
   notes?: string;
+  /** Exercícios reais do catálogo wger (ids conferidos na API). */
+  exercises?: WorkoutExercise[];
 };
 
 const DEMO_SESSIONS: DemoSession[] = [
@@ -32,6 +34,10 @@ const DEMO_SESSIONS: DemoSession[] = [
     durationMinutes: 65,
     happensOn: (week) => week !== 5,
     notes: 'Supino, desenvolvimento e tríceps corda.',
+    exercises: [
+      { exerciseId: 73, name: 'Supino reto', muscleGroup: 'chest' },
+      { exerciseId: 238, name: 'Crucifixo com halteres', muscleGroup: 'chest' },
+    ],
   },
   {
     title: 'Pull',
@@ -72,6 +78,7 @@ export function createDemoData(today: DateKey, now: Date = new Date()): { profil
         title: session.title,
         date,
         muscleGroups: session.muscleGroups,
+        exercises: session.exercises ?? [],
         durationMinutes: session.durationMinutes,
         ...(session.notes ? { notes: session.notes } : {}),
         createdAt: `${date}T19:00:00.000Z`,

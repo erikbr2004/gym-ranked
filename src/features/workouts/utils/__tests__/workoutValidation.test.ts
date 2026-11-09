@@ -31,7 +31,13 @@ describe('validateWorkoutForm', () => {
     );
     expect(result).toEqual({
       isValid: true,
-      input: { title: 'Push', date: TODAY, muscleGroups: ['chest', 'triceps'], durationMinutes: 65 },
+      input: { title: 'Push', date: TODAY, muscleGroups: ['chest', 'triceps'], exercises: [], durationMinutes: 65 },
     });
+  });
+
+  it('mantém os exercícios escolhidos no catálogo', () => {
+    const exercises = [{ exerciseId: 73, name: 'Supino reto', muscleGroup: 'chest' as const }];
+    const result = validateWorkoutForm(values({ title: 'Push', muscleGroups: ['chest'], exercises }), TODAY);
+    expect(result.isValid && result.input.exercises).toEqual(exercises);
   });
 });

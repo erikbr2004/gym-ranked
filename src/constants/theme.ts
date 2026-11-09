@@ -16,6 +16,8 @@ export const colors = {
   warning: '#FFB020',
   danger: '#FF5A5F',
   overlay: 'rgba(0, 0, 0, 0.5)',
+  /** Fundo claro para as ilustrações de exercícios da API, desenhadas sobre branco. */
+  imageBackdrop: '#F4F6F8',
 } as const;
 
 export const rankColors: Record<RankName, string> = {
@@ -28,6 +30,27 @@ export const rankColors: Record<RankName, string> = {
   Mestre: '#B57BFF',
   Elite: '#FF4D6D',
 };
+
+export const PHOTO_ACCENT_IDS = ['lime', 'orange', 'sky', 'white'] as const;
+export type PhotoAccentId = (typeof PHOTO_ACCENT_IDS)[number];
+
+/** Cores de destaque que o usuário pode escolher para a foto do treino. */
+export const photoAccentColors: Record<PhotoAccentId, string> = {
+  lime: colors.primary,
+  orange: '#FF8A3D',
+  sky: '#38BDF8',
+  white: colors.text,
+};
+
+/** Camadas escuras sobre a foto que garantem a leitura do texto em qualquer imagem. */
+export const photoShade = {
+  none: 'rgba(5, 8, 12, 0)',
+  soft: 'rgba(5, 8, 12, 0.55)',
+  medium: 'rgba(5, 8, 12, 0.72)',
+  strong: 'rgba(5, 8, 12, 0.94)',
+  chip: 'rgba(255, 255, 255, 0.09)',
+  divider: 'rgba(255, 255, 255, 0.16)',
+} as const;
 
 export const spacing = {
   xxs: 2,

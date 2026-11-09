@@ -242,6 +242,13 @@ export function formatWeekRange(key: DateKey): string {
   return `${formatShortDate(start)} – ${formatShortDate(end)}`;
 }
 
+/** `2026-11-08` → `08 NOV 2026` (usado na imagem compartilhável). */
+export function formatShareDate(key: DateKey): string {
+  const [year, month, day] = key.split('-');
+  const monthAbbreviation = MONTH_NAMES[Number(month) - 1].slice(0, 3).toUpperCase();
+  return `${day} ${monthAbbreviation} ${year}`;
+}
+
 /** Converte `DD/MM/AAAA` digitado pelo usuário em `DateKey`, ou `null` se inválido. */
 export function parseDisplayDate(text: string): DateKey | null {
   const match = BR_DATE_PATTERN.exec(text.trim());

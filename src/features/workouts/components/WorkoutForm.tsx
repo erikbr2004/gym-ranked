@@ -8,6 +8,7 @@ import type { WorkoutFormController } from '../hooks/useWorkoutForm';
 import { WORKOUT_LIMITS } from '../utils/workoutValidation';
 import { FormField } from './FormField';
 import { MuscleGroupSelector } from './MuscleGroupSelector';
+import { WorkoutExerciseList } from './WorkoutExerciseList';
 
 type WorkoutFormProps = {
   form: WorkoutFormController;
@@ -15,10 +16,12 @@ type WorkoutFormProps = {
   submitLabel: string;
   onSubmit: () => void;
   isSubmitting: boolean;
+  /** Abre o catálogo de exercícios (API wger) para escolher os exercícios do treino. */
+  onOpenCatalog: () => void;
 };
 
-export function WorkoutForm({ form, today, submitLabel, onSubmit, isSubmitting }: WorkoutFormProps) {
-  const { values, errors, setField, toggleMuscleGroup } = form;
+export function WorkoutForm({ form, today, submitLabel, onSubmit, isSubmitting, onOpenCatalog }: WorkoutFormProps) {
+  const { values, errors, setField, toggleMuscleGroup, removeExercise } = form;
   const quickDates = [
     { label: 'Hoje', value: formatDate(today) },
     { label: 'Ontem', value: formatDate(addDays(today, -1)) },
@@ -76,6 +79,18 @@ export function WorkoutForm({ form, today, submitLabel, onSubmit, isSubmitting }
         />
       </FormField>
 
+      <FormField label="Exercícios" optional hint="Do catálogo da API pública wger. Não alteram a pontuação.">
+        <View style={styles.exercises}>
+          <WorkoutExerciseList exercises={values.exercises} onRemove={removeExercise} />
+          <AppButton
+            label={values.exercises.length > 0 ? 'Editar exercícios' : 'Adicionar do catálogo'}
+            variant="secondary"
+            icon="list-outline"
+            onPress={onOpenCatalog}
+          />
+        </View>
+      </FormField>
+
       <FormField
         label="Duração em minutos"
         optional
@@ -114,6 +129,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     marginTop: -spacing.md,
+  },
+  exercises: {
+    gap: spacing.sm,
   },
   chip: {
     minHeight: sizes.touchTarget - 8,

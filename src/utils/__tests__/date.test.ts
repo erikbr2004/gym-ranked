@@ -3,6 +3,7 @@ import {
   countWeeksInclusive,
   formatDate,
   formatLongDate,
+  formatShareDate,
   formatWeekRange,
   getCompletedWeekStarts,
   getIsoWeekday,
@@ -78,6 +79,8 @@ describe('formatação e agrupamento', () => {
     expect(formatDate('2026-09-28')).toBe('28/09/2026');
     expect(formatLongDate('2026-09-28')).toBe('segunda-feira, 28 de setembro de 2026');
     expect(formatWeekRange('2026-09-30')).toBe('28/09 – 04/10');
+    expect(formatShareDate('2026-11-08')).toBe('08 NOV 2026');
+    expect(formatShareDate('2026-03-01')).toBe('01 MAR 2026');
   });
 
   it('agrupa por semana da mais recente para a mais antiga', () => {

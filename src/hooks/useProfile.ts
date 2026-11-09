@@ -1,7 +1,8 @@
 import { useAppData } from '../contexts/AppDataContext';
 
 export function useProfile() {
-  const { profile, updateProfileName, replaceAllData, resetAllData, weeklySummary, workouts } = useAppData();
+  const { profile, updateProfileName, replaceAllData, resetAllData, weeklySummary, workouts, photosByWorkoutId } =
+    useAppData();
 
   return {
     profile,
@@ -9,6 +10,7 @@ export function useProfile() {
     replaceAllData,
     resetAllData,
     totalWorkouts: workouts.length,
+    totalPhotos: Object.keys(photosByWorkoutId).length,
     weeksTracked: weeklySummary.weeksTracked,
   };
 }

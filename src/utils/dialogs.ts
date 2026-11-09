@@ -39,6 +39,29 @@ export function confirmAction({ title, message, confirmLabel, destructive = fals
   });
 }
 
+export type PhotoSourceChoice = 'camera' | 'library';
+
+/** Pergunta se a foto virá da câmera ou da galeria. No navegador só existe a galeria. */
+export function choosePhotoSource(
+  title: string,
+  message = 'Escolha de onde vem a foto do treino.',
+): Promise<PhotoSourceChoice | null> {
+  if (Platform.OS === 'web') return Promise.resolve('library');
+
+  return new Promise((resolve) => {
+    Alert.alert(
+      title,
+      message,
+      [
+        { text: 'Câmera', onPress: () => resolve('camera') },
+        { text: 'Galeria', onPress: () => resolve('library') },
+        { text: 'Cancelar', style: 'cancel', onPress: () => resolve(null) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(null) },
+    );
+  });
+}
+
 export function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Ocorreu um erro inesperado.';
 }

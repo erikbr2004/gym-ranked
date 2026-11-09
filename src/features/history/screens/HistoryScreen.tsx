@@ -6,10 +6,12 @@ import { EmptyState } from '../../../components/EmptyState';
 import { ScreenContainer } from '../../../components/ScreenContainer';
 import { WorkoutCard } from '../../../components/WorkoutCard';
 import { colors, fontSize, fontWeight, spacing } from '../../../constants/theme';
+import { useWorkoutPhotos } from '../../../hooks/useWorkoutPhotos';
 import { useWorkouts } from '../../../hooks/useWorkouts';
 import type { MainTabScreenProps } from '../../../navigation/navigationTypes';
 import type { DateKey } from '../../../types/common';
 import { formatWeekRange, getWeekNumber, groupByWeek, isSameWeek } from '../../../utils/date';
+import { getWorkoutPhotoImages } from '../../workout-photo/services/photoService';
 import { useDeleteWorkout } from '../../workouts/hooks/useDeleteWorkout';
 import type { Workout } from '../../workouts/types/workout';
 
@@ -25,7 +27,18 @@ function buildSectionTitle(weekStart: DateKey, today: DateKey): string {
 
 export function HistoryScreen({ navigation }: MainTabScreenProps<'History'>) {
   const { workouts, today } = useWorkouts();
+  const { photosByWorkoutId } = useWorkoutPhotos();
   const confirmDelete = useDeleteWorkout();
+
+  // Miniaturas resolvidas uma vez por alteração nas fotos (somente arquivos existentes).
+  const thumbnails = useMemo(() => {
+    const result: Record<string, string> = {};
+    for (const photo of Object.values(photosByWorkoutId)) {
+      const { composition } = getWorkoutPhotoImages(photo);
+      if (composition.exists) result[photo.workoutId] = composition.uri;
+    }
+    return result;
+  }, [photosByWorkoutId]);
 
   // `workouts` já vem ordenado do mais recente para o mais antigo.
   const sections = useMemo<WeekSection[]>(
@@ -63,6 +76,8 @@ export function HistoryScreen({ navigation }: MainTabScreenProps<'History'>) {
             workout={item}
             onPress={() => navigation.navigate('WorkoutDetails', { workoutId: item.id })}
             onDelete={() => confirmDelete(item)}
+            hasPhoto={item.id in photosByWorkoutId}
+            photoThumbnailUri={thumbnails[item.id]}
           />
         )}
         ItemSeparatorComponent={Separator}

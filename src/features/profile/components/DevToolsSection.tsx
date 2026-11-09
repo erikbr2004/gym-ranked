@@ -12,7 +12,7 @@ import { confirmAction, getErrorMessage, showMessage } from '../../../utils/dial
  * é verdadeiro, então não aparece em builds de produção.
  */
 export function DevToolsSection() {
-  const { replaceAllData, resetAllData } = useProfile();
+  const { replaceAllData, resetAllData, totalWorkouts, totalPhotos } = useProfile();
 
   const runAfterConfirm = async (
     title: string,
@@ -36,6 +36,11 @@ export function DevToolsSection() {
       <Text style={styles.description}>
         Visível apenas em modo de desenvolvimento. Os dados de demonstração simulam 16 semanas de treinos.
       </Text>
+      <View style={styles.storage}>
+        <Text style={styles.storageLine}>SQLite: {totalWorkouts} treino(s) e {totalPhotos} foto(s) (metadados)</Text>
+        <Text style={styles.storageLine}>Arquivos do app: imagens das fotos e foto de perfil</Text>
+        <Text style={styles.storageLine}>AsyncStorage: perfil e preferências</Text>
+      </View>
       <AppButton
         label="Carregar demonstração"
         variant="secondary"
@@ -43,7 +48,7 @@ export function DevToolsSection() {
         onPress={() =>
           runAfterConfirm(
             'Carregar demonstração',
-            'Seus dados atuais serão substituídos por dados de exemplo.',
+            'Seus treinos e fotos atuais serão substituídos por dados de exemplo.',
             () => replaceAllData(createDemoData(getTodayKey())),
             'Dados de demonstração carregados.',
           )
@@ -56,7 +61,7 @@ export function DevToolsSection() {
         onPress={() =>
           runAfterConfirm(
             'Apagar dados',
-            'Todos os treinos e o perfil serão apagados deste aparelho.',
+            'Todos os treinos, fotos, o perfil e as preferências serão apagados deste aparelho.',
             resetAllData,
             'Todos os dados foram apagados.',
           )
@@ -84,5 +89,15 @@ const styles = StyleSheet.create({
   description: {
     color: colors.textSubtle,
     fontSize: fontSize.sm,
+  },
+  storage: {
+    gap: spacing.xxs,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+  },
+  storageLine: {
+    color: colors.textMuted,
+    fontSize: fontSize.xs,
   },
 });

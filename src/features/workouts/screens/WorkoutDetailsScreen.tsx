@@ -10,6 +10,8 @@ import { colors, fontSize, fontWeight, radius, sizes, spacing } from '../../../c
 import { useWorkouts } from '../../../hooks/useWorkouts';
 import type { RootStackScreenProps } from '../../../navigation/navigationTypes';
 import { formatIsoTimestamp, formatLongDate, formatWeekRange, getWeekNumber } from '../../../utils/date';
+import { WorkoutPhotoSection } from '../../workout-photo/components/WorkoutPhotoSection';
+import { WorkoutExerciseList } from '../components/WorkoutExerciseList';
 import { useDeleteWorkout } from '../hooks/useDeleteWorkout';
 
 type InfoRowProps = {
@@ -68,12 +70,22 @@ export function WorkoutDetailsScreen({ navigation, route }: RootStackScreenProps
           <InfoRow icon="create-outline" label="Registrado em" value={formatIsoTimestamp(workout.createdAt)} />
         </View>
 
+        <Text style={styles.sectionTitle}>Foto do treino</Text>
+        <WorkoutPhotoSection workout={workout} />
+
         <Text style={styles.sectionTitle}>Grupos musculares</Text>
         <View style={styles.tags}>
           {workout.muscleGroups.map((group) => (
             <MuscleGroupTag key={group} muscleGroup={group} />
           ))}
         </View>
+
+        {workout.exercises.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Exercícios</Text>
+            <WorkoutExerciseList exercises={workout.exercises} />
+          </>
+        )}
 
         {workout.notes ? (
           <>

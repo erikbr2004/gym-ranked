@@ -5,15 +5,25 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, fontSize, fontWeight, spacing } from '../../constants/theme';
 import { AppButton } from '../AppButton';
 
+type IconName = ComponentProps<typeof Ionicons>['name'];
+
 type EmptyStateProps = {
-  icon: ComponentProps<typeof Ionicons>['name'];
+  icon: IconName;
   title: string;
   message: string;
   actionLabel?: string;
+  actionIcon?: IconName;
   onAction?: () => void;
 };
 
-export function EmptyState({ icon, title, message, actionLabel, onAction }: EmptyStateProps) {
+export function EmptyState({
+  icon,
+  title,
+  message,
+  actionLabel,
+  actionIcon = 'add-circle-outline',
+  onAction,
+}: EmptyStateProps) {
   return (
     <View style={styles.container}>
       <View style={styles.iconWrapper}>
@@ -23,7 +33,7 @@ export function EmptyState({ icon, title, message, actionLabel, onAction }: Empt
       <Text style={styles.message}>{message}</Text>
       {actionLabel && onAction && (
         <View style={styles.action}>
-          <AppButton label={actionLabel} onPress={onAction} icon="add-circle-outline" />
+          <AppButton label={actionLabel} onPress={onAction} icon={actionIcon} />
         </View>
       )}
     </View>

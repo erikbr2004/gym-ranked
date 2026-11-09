@@ -435,10 +435,10 @@ gym-ranked/
 - **Pré-visualização web:** o SQLite funciona no navegador (WebAssembly); salvar e compartilhar fotos é exclusivo do app (versões `.web.ts` informam isso sem quebrar). Abra pelo **localhost** (ex.: `http://localhost:8081`): pelo IP da rede ou de VPN em HTTP o navegador não considera a página segura, bloqueia o armazenamento (OPFS) usado pelo SQLite e o app avisa que o banco não pode ser aberto. No celular, use o Expo Go, que não tem essa limitação.
 - **Datas como `YYYY-MM-DD` e aritmética em UTC:** evita erros de fuso e horário de verão.
 
-## Próximas funcionalidades
+## TODOs
 
-- Séries, repetições e carga por exercício
 - Geolocalização (check-in na academia)
+- Séries, repetições e carga por exercício
 - Autenticação e backend/API com sincronização em nuvem
 - Ranking online entre usuários
 - Notificações (lembrete de grupos pendentes antes do fim da semana)
